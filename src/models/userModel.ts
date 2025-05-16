@@ -72,6 +72,9 @@ const UserSchema = getBaseSchema<IUser>({
     type: String,
     select: false,
   },
+  socketId: {
+    type: String,
+  },
 });
 
 export const UserModel = getBaseModel<IUser>('User', UserSchema);

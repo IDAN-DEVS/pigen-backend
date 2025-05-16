@@ -7,17 +7,13 @@ import { baseHelper } from '../utils/baseHelper';
 import { DateTime } from 'luxon';
 
 const updateUserProfile = async (payload: IUpdateUserProfilePayload, user: IUser) => {
-  const { username, fullName, profilePicture } = payload;
+  const { username, fullName, socketId, profilePicture } = payload;
 
-  let updatePayload: Partial<IUser> = {};
-
-  if (fullName) {
-    updatePayload.fullName = fullName;
-  }
-
-  if (profilePicture) {
-    updatePayload.profilePicture = profilePicture;
-  }
+  let updatePayload: Partial<IUser> = {
+    ...(fullName && { fullName }),
+    ...(profilePicture && { profilePicture }),
+    ...(socketId && { socketId }),
+  };
 
   if (username) {
     // check if username is already taken

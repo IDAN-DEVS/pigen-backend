@@ -22,10 +22,12 @@ export interface IUser extends IBaseDocument {
   remainingIdeas: number;
   lastIdeaResetDate: Date;
   apiKey?: string;
+  socketId?: string;
 }
 
 export interface IUpdateUserProfilePayload {
   fullName?: string;
   username?: string;
   profilePicture?: string;
+  socketId?: string;
 }
