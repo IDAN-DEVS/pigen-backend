@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { Server } from 'http';
+import { initSocketServer } from './core/socket/socketServer';
 import { gracefulShutdown as shutdownQueues, initializeQueueSystem } from './core/queue';
 
 const startServer = async () => {
@@ -17,6 +18,9 @@ const startServer = async () => {
       logger.info(`🚀 Server started on port ${env.PORT} (${env.NODE_ENV})`);
       logger.info(`Queue dashboard available at: http://localhost:${env.PORT}/admin/queues`);
     });
+
+    // Initialize Socket.IO server
+    initSocketServer(server);
 
     // Graceful shutdown handling
     process.on('SIGTERM', () => {
