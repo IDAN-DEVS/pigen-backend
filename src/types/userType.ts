@@ -7,9 +7,7 @@ export enum UserRoleEnum {
 
 export interface IUser extends IBaseDocument {
   // fields
-  image: string;
-  firstName: string;
-  lastName: string;
+  profilePicture: string;
   fullName: string;
   username: string;
   usernameSlug: string;
@@ -20,6 +18,17 @@ export interface IUser extends IBaseDocument {
   passwordUpdatedAt?: Date;
   role: UserRoleEnum;
   lastLoginAt: Date;
+  memberSince: Date;
+  remainingIdeas: number;
+  lastIdeaResetDate: Date;
+  apiKey?: string;
+  apiStatus: ApiStatusEnum;
+}
+
+export enum ApiStatusEnum {
+  NOT_CONFIGURED = 'Not Configured',
+  ACTIVE = 'Active',
+  INACTIVE = 'Inactive',
 }
 
 export interface IUpdateUserProfilePayload {

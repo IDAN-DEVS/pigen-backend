@@ -1,22 +1,8 @@
-import { IUser, UserRoleEnum } from '../types/userType';
+import { ApiStatusEnum, IUser, UserRoleEnum } from '../types/userType';
 import { getBaseModel, getBaseSchema } from './baseModel';
 
 const UserSchema = getBaseSchema<IUser>({
   // fields
-  image: {
-    type: String,
-    default: '',
-  },
-  firstName: {
-    type: String,
-    trim: true,
-    default: '',
-  },
-  lastName: {
-    type: String,
-    trim: true,
-    default: '',
-  },
   fullName: {
     type: String,
     index: true,
@@ -65,6 +51,31 @@ const UserSchema = getBaseSchema<IUser>({
   },
   lastLoginAt: {
     type: Date,
+  },
+  profilePicture: {
+    type: String,
+    default: '',
+  },
+  memberSince: {
+    type: Date,
+    default: Date.now,
+  },
+  remainingIdeas: {
+    type: Number,
+    default: 10,
+  },
+  lastIdeaResetDate: {
+    type: Date,
+    default: Date.now,
+  },
+  apiKey: {
+    type: String,
+    select: false,
+  },
+  apiStatus: {
+    type: String,
+    enum: Object.values(ApiStatusEnum),
+    default: ApiStatusEnum.NOT_CONFIGURED,
   },
 });
 
