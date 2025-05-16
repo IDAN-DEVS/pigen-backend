@@ -1,8 +1,10 @@
+import { appConstants } from '../constants/appConstant';
 import { userConstant } from '../constants/userConstant';
 import { AppError } from '../core/errors/appError';
 import { UserModel } from '../models/userModel';
 import { IUpdateUserProfilePayload, IUser } from '../types/userType';
 import { baseHelper } from '../utils/baseHelper';
+import { DateTime } from 'luxon';
 
 const updateUserProfile = async (payload: IUpdateUserProfilePayload, user: IUser) => {
   const { username, fullName, profilePicture } = payload;
@@ -46,7 +48,26 @@ const checkUsernameAvailability = async (username: string) => {
   return !usernameRecord;
 };
 
+const checkAndResetDailyTokens = async (user: IUser): Promise<void> => {
+  const now = DateTime.now();
+  const lastReset = DateTime.fromJSDate(user.lastIdeaResetDate);
+
+  // Check if it's a new day (comparing dates in user's timezone)
+  if (!lastReset.hasSame(now, 'day')) {
+    await UserModel.updateOne(
+      { _id: baseHelper.getMongoDbResourceId(user) },
+      {
+        $set: {
+          remainingIdeas: appConstants.freeTokenPerDay,
+          lastIdeaResetDate: now.toJSDate(),
+        },
+      },
+    );
+  }
+};
+
 export const userService = {
   updateUserProfile,
   checkUsernameAvailability,
+  checkAndResetDailyTokens,
 };

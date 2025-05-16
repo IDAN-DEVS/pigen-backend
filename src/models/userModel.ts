@@ -1,4 +1,4 @@
-import { ApiStatusEnum, IUser, UserRoleEnum } from '../types/userType';
+import { IUser, UserRoleEnum } from '../types/userType';
 import { getBaseModel, getBaseSchema } from './baseModel';
 
 const UserSchema = getBaseSchema<IUser>({
@@ -71,11 +71,6 @@ const UserSchema = getBaseSchema<IUser>({
   apiKey: {
     type: String,
     select: false,
-  },
-  apiStatus: {
-    type: String,
-    enum: Object.values(ApiStatusEnum),
-    default: ApiStatusEnum.NOT_CONFIGURED,
   },
 });
 

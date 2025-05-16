@@ -22,13 +22,6 @@ export interface IUser extends IBaseDocument {
   remainingIdeas: number;
   lastIdeaResetDate: Date;
   apiKey?: string;
-  apiStatus: ApiStatusEnum;
-}
-
-export enum ApiStatusEnum {
-  NOT_CONFIGURED = 'Not Configured',
-  ACTIVE = 'Active',
-  INACTIVE = 'Inactive',
 }
 
 export interface IUpdateUserProfilePayload {

@@ -17,6 +17,8 @@ import { cacheHelper } from '../utils/cacheHelper';
 import { ErrorCodesEnum, StatusCodesEnum } from '../core/http/statusCodes';
 import { OAuth2Client } from 'google-auth-library';
 import { welcomeEmailTemplate } from '../constants/emailTemplates/welcomeEmailTemplate';
+import { userService } from './userService';
+import { appConstants } from '../constants/appConstant';
 
 let googleClient = new OAuth2Client();
 
@@ -85,7 +87,10 @@ const loginWithEmail = async (credentials: IEmailLoginRequest) => {
     throw new AppError('Invalid email or password.', 401);
   }
 
-  // Update last login timestamp
+  // Check and reset daily tokens if needed (no-await, runs in bg)
+  userService.checkAndResetDailyTokens(user);
+
+  // Update last login timestamp (no-await, runs in bg)
   UserModel.updateOne(
     { _id: baseHelper.getMongoDbResourceId(user) },
     {
@@ -93,7 +98,7 @@ const loginWithEmail = async (credentials: IEmailLoginRequest) => {
         lastLoginAt: new Date(),
       },
     },
-  ).then(() => console.log('last login date updated'));
+  );
 
   return generateJwtToken(user);
 };
@@ -172,6 +177,8 @@ const handleGoogleAuth = async (payload: ISocialAuthPayload) => {
       isEmailVerified: true,
       profileImage: userData.picture,
       fullName: userData?.name || userData?.given_name + ' ' + userData?.family_name,
+      lastIdeaResetDate: new Date(),
+      remainingIdeas: appConstants.freeTokenPerDay,
     });
 
     // Send welcome email for new Google sign ups
@@ -182,18 +189,18 @@ const handleGoogleAuth = async (payload: ISocialAuthPayload) => {
       html: welcomeEmailTemplate({ name: user?.fullName }),
     });
   } else {
+    // Check and reset daily tokens if needed (no-await, runs in bg)
+    userService.checkAndResetDailyTokens(user);
+
+    // Update last login (no-await, runs in bg)
     UserModel.updateOne(
-      {
-        email: userData.email,
-      },
+      { _id: baseHelper.getMongoDbResourceId(user) },
       {
         $set: {
           lastLoginAt: new Date(),
         },
       },
-    ).then(() => {
-      console.log('last login date updated');
-    });
+    );
   }
 
   return generateJwtToken(user);
