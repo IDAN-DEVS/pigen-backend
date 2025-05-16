@@ -4,7 +4,6 @@ import { IUser } from './userType';
 export interface IConversation extends IBaseDocument {
   user: IUser | string;
   title: string;
-  lastMessageAt: Date;
 }
 
 export interface IMessage extends IBaseDocument {

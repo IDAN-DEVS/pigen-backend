@@ -15,6 +15,7 @@ import { AppError } from '../core/errors/appError';
 import { baseHelper } from '../utils/baseHelper';
 import { StatusCodesEnum } from '../core/http/statusCodes';
 import { aiService } from './aiService';
+import { logger } from '../utils/logger';
 
 const createConversation = async (
   payload: ICreateConversationPayload,
@@ -27,12 +28,23 @@ const createConversation = async (
     title,
   });
 
-  await MessageModel.create({
+  // Create the first user message
+  const firstUserMessage = await MessageModel.create({
     user: baseHelper.getMongoDbResourceId(user),
     conversation: baseHelper.getMongoDbResourceId(newConversation),
     content: message,
     sender: SenderEnum.USER,
   });
+
+  // Trigger AI reply to the first message
+  // Pass the user object itself, and the content of the first message
+  aiService
+    .generateAndSaveAiReply(
+      baseHelper.getMongoDbResourceId(newConversation),
+      user,
+      firstUserMessage.content,
+    )
+    .catch(error => logger.error('Error triggering AI reply for new conversation:', error));
 
   return newConversation;
 };
@@ -51,16 +63,12 @@ const getUserConversations = async (
 const sendMessage = async (payload: ISendMessagePayload, user: IUser): Promise<IMessage> => {
   const { conversationId, content } = payload;
 
-  const conversation = await ConversationModel.findByIdAndUpdate(conversationId, {
-    $set: { lastMessageAt: new Date() },
-  }).lean();
+  const conversation = await ConversationModel.findById(conversationId).lean();
 
   if (!conversation) {
     throw new AppError('Conversation not found', StatusCodesEnum.NOT_FOUND);
   }
 
-  // Ensure the user sending the message is part of the conversation
-  // (or implement other authorization logic if needed, e.g. system messages)
   if (
     baseHelper.getMongoDbResourceId(conversation.user) !== baseHelper.getMongoDbResourceId(user)
   ) {
@@ -74,8 +82,12 @@ const sendMessage = async (payload: ISendMessagePayload, user: IUser): Promise<I
     sender: SenderEnum.USER,
   });
 
-  // call ai service to generate a response (in-bg)
-  aiService.generateAndSaveAiReply(conversationId, content);
+  // Call AI service to generate a response, providing the user object and message content
+  aiService
+    .generateAndSaveAiReply(conversationId, user, content)
+    .catch(error =>
+      logger.error(`Error triggering AI reply for conversation ${conversationId}:`, error),
+    );
 
   return newMessage;
 };
@@ -86,13 +98,13 @@ const getConversationMessages = async (
 ): Promise<IPaginatedResponse<IMessage>> => {
   const { conversationId, ...paginationOptions } = query;
 
-  const conversation = await ConversationModel.findOne({
+  const conversationCheck = await ConversationModel.findOne({
     _id: conversationId,
     user: baseHelper.getMongoDbResourceId(user),
   });
 
-  if (!conversation) {
-    throw new AppError('Conversation not found', StatusCodesEnum.NOT_FOUND);
+  if (!conversationCheck) {
+    throw new AppError('Conversation not found or access denied', StatusCodesEnum.NOT_FOUND);
   }
 
   return paginationHelper.find<IMessage>({
@@ -107,21 +119,23 @@ const getConversationMessages = async (
   });
 };
 
-// ai service method for adding new message
 const addNewMessage = async (payload: ISendMessagePayload) => {
-  const { conversationId, content } = payload;
+  const { conversationId, content, sender } = payload;
 
   const conversation = await ConversationModel.findById(conversationId);
 
   if (!conversation) {
-    throw new AppError('Conversation not found', StatusCodesEnum.NOT_FOUND);
+    throw new AppError(
+      `Conversation not found: ${conversationId} while trying to add AI message`,
+      StatusCodesEnum.NOT_FOUND,
+    );
   }
 
   const newMessage = await MessageModel.create({
     user: baseHelper.getMongoDbResourceId(conversation.user),
     conversation: conversationId,
     content,
-    sender: SenderEnum.SYSTEM,
+    sender,
   });
 
   return newMessage;

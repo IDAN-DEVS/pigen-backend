@@ -14,11 +14,6 @@ const ConversationSchema = getBaseSchema<IConversation>({
     required: true,
     trim: true,
   },
-  lastMessageAt: {
-    type: Date,
-    default: Date.now,
-    index: true,
-  },
 });
 
 export const ConversationModel = getBaseModel<IConversation>('Conversation', ConversationSchema);
