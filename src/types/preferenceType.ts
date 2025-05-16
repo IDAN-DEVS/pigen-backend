@@ -7,6 +7,8 @@ export interface IUserPreference extends IBaseDocument {
   theme: ThemeEnum;
   notificationsEnabled: boolean;
   defaultCategory: IdeaCategoryEnum;
+  saveChatHistory: boolean;
+  displayCreditWarning: boolean;
 }
 
 export enum ThemeEnum {

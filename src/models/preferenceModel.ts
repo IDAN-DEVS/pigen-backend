@@ -25,6 +25,14 @@ const UserPreferenceSchema = getBaseSchema<IUserPreference>({
     enum: Object.values(IdeaCategoryEnum),
     default: IdeaCategoryEnum.ALL,
   },
+  saveChatHistory: {
+    type: Boolean,
+    default: true,
+  },
+  displayCreditWarning: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 export const UserPreferenceModel = getBaseModel<IUserPreference>(

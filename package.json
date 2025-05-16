@@ -24,6 +24,7 @@
     "@bull-board/api": "^6.9.1",
     "@bull-board/express": "^6.9.1",
     "@bull-board/ui": "^6.9.1",
+    "@google/generative-ai": "^0.24.1",
     "@types/joi": "^17.2.2",
     "@types/uuid": "^10.0.0",
     "apple-signin-auth": "^1.7.9",
