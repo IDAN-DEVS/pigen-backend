@@ -16,7 +16,6 @@ import { cacheConstants } from '../constants/cacheConstant';
 import { cacheHelper } from '../utils/cacheHelper';
 import { ErrorCodesEnum, StatusCodesEnum } from '../core/http/statusCodes';
 import { OAuth2Client } from 'google-auth-library';
-import { env } from '../config/env';
 
 let googleClient = new OAuth2Client();
 
@@ -125,26 +124,12 @@ const verifyEmail = async (payload: IVerifyEmailRequest): Promise<boolean> => {
 };
 
 const socialAuth = async (payload: ISocialAuthPayload) => {
-  switch (payload.type) {
-    case 'google':
-      return await handleGoogleAuth(payload);
-    default:
-      throw new AppError('Invalid social auth type', 400);
-  }
+  return await handleGoogleAuth(payload);
 };
 
 const handleGoogleAuth = async (payload: ISocialAuthPayload) => {
   // First, get ID token info using the access token
   const tokenInfo = await googleClient.getTokenInfo(payload.token);
-
-  // Verify the token was intended for your application
-  const clientIds = env.GOOGLE_CLIENT_IDS.split(',');
-  if (!clientIds.includes(tokenInfo.aud)) {
-    throw new AppError(
-      'Google auth - Invalid token, please try again.',
-      StatusCodesEnum.BAD_REQUEST,
-    );
-  }
 
   // Verify token expiration
   if (tokenInfo.expiry_date < Date.now()) {
@@ -185,11 +170,9 @@ const handleGoogleAuth = async (payload: ISocialAuthPayload) => {
     {
       $setOnInsert: {
         email: userData.email,
-        role: payload.role,
         isEmailVerified: true,
         profileImage: userData.picture,
         fullName: userData?.name || userData?.given_name + ' ' + userData?.family_name,
-        lastLoginAt: new Date(),
       },
       $set: {
         lastLoginAt: new Date(),

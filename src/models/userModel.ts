@@ -60,6 +60,8 @@ const UserSchema = getBaseSchema<IUser>({
     type: String,
     enum: Object.values(UserRoleEnum),
     index: true,
+    required: true,
+    default: UserRoleEnum.USER,
   },
   lastLoginAt: {
     type: Date,

@@ -1,5 +1,4 @@
 import Joi from 'joi';
-import { UserRoleEnum } from '../../types/userType';
 
 const register = Joi.object({
   email: Joi.string().email().required(),
@@ -13,7 +12,6 @@ const register = Joi.object({
       'any.required': 'Phone number is required.',
     }),
   referralCode: Joi.string().optional(),
-  role: Joi.string().valid(UserRoleEnum.USER).default(UserRoleEnum.USER).required(),
 });
 
 const login = Joi.object({
@@ -27,10 +25,7 @@ const verifyEmail = Joi.object({
 });
 
 const socialAuth = Joi.object({
-  type: Joi.string().valid('google', 'apple').required(),
   token: Joi.string().required(),
-  name: Joi.string().optional(),
-  role: Joi.string().valid(UserRoleEnum.USER).default(UserRoleEnum.USER).required(),
 });
 
 const resetPassword = Joi.object({

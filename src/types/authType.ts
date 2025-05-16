@@ -30,9 +30,7 @@ export interface IVerifyEmailRequest {
 }
 
 export interface ISocialAuthPayload {
-  type: 'google';
   token: string;
-  role: UserRoleEnum;
 }
 
 export interface IResetPasswordPayload {
