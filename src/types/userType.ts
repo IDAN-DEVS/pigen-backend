@@ -32,10 +32,7 @@ export enum ApiStatusEnum {
 }
 
 export interface IUpdateUserProfilePayload {
-  image: string;
-  firstName: string;
-  lastName: string;
-  username: string;
-  password: string;
-  referralCode: string;
+  fullName?: string;
+  username?: string;
+  profilePicture?: string;
 }
