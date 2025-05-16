@@ -16,6 +16,7 @@ import { cacheConstants } from '../constants/cacheConstant';
 import { cacheHelper } from '../utils/cacheHelper';
 import { ErrorCodesEnum, StatusCodesEnum } from '../core/http/statusCodes';
 import { OAuth2Client } from 'google-auth-library';
+import { welcomeEmailTemplate } from '../constants/emailTemplates/welcomeEmailTemplate';
 
 let googleClient = new OAuth2Client();
 
@@ -163,23 +164,37 @@ const handleGoogleAuth = async (payload: ISocialAuthPayload) => {
     throw new AppError('Kindly verify your google email to proceed', StatusCodesEnum.BAD_REQUEST);
   }
 
-  const user = await UserModel.findOneAndUpdate(
-    {
+  let user = await UserModel.findOne({ email: userData.email });
+
+  if (!user) {
+    user = await UserModel.create({
       email: userData.email,
-    },
-    {
-      $setOnInsert: {
+      isEmailVerified: true,
+      profileImage: userData.picture,
+      fullName: userData?.name || userData?.given_name + ' ' + userData?.family_name,
+    });
+
+    // Send welcome email for new Google sign ups
+    const { mailService } = await import('./mailService');
+    await mailService.sendEmail({
+      to: userData.email,
+      subject: 'Welcome to PIGEN!',
+      html: welcomeEmailTemplate({ name: user?.fullName }),
+    });
+  } else {
+    UserModel.updateOne(
+      {
         email: userData.email,
-        isEmailVerified: true,
-        profileImage: userData.picture,
-        fullName: userData?.name || userData?.given_name + ' ' + userData?.family_name,
       },
-      $set: {
-        lastLoginAt: new Date(),
+      {
+        $set: {
+          lastLoginAt: new Date(),
+        },
       },
-    },
-    { new: true, upsert: true },
-  );
+    ).then(() => {
+      console.log('last login date updated');
+    });
+  }
 
   return generateJwtToken(user);
 };
