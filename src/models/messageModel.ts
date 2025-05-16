@@ -3,6 +3,12 @@ import { IMessage, SenderEnum } from '../types/conversationType';
 import { getBaseModel, getBaseSchema } from './baseModel';
 
 const MessageSchema = getBaseSchema<IMessage>({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  },
   conversation: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Conversation',
@@ -12,6 +18,7 @@ const MessageSchema = getBaseSchema<IMessage>({
   content: {
     type: String,
     required: true,
+    trim: true,
   },
   sender: {
     type: String,
@@ -21,13 +28,11 @@ const MessageSchema = getBaseSchema<IMessage>({
   containsIdea: {
     type: Boolean,
     default: false,
-    index: true,
   },
   idea: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Idea',
-    index: true,
-    sparse: true,
+    required: false,
   },
 });
 

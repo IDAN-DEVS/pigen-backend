@@ -1,4 +1,4 @@
-import { IBaseDocument } from './baseType';
+import { IBaseDocument, IPaginationQuery } from './baseType';
 import { IUser } from './userType';
 
 export interface IConversation extends IBaseDocument {
@@ -8,10 +8,10 @@ export interface IConversation extends IBaseDocument {
 }
 
 export interface IMessage extends IBaseDocument {
+  user: IUser | string;
   conversation: IConversation | string;
   content: string;
   sender: SenderEnum;
-  timestamp: Date;
   containsIdea: boolean;
   idea?: IIdea | string;
 }
@@ -19,6 +19,21 @@ export interface IMessage extends IBaseDocument {
 export enum SenderEnum {
   USER = 'user',
   SYSTEM = 'system',
+}
+
+export interface ICreateConversationPayload {
+  title?: string;
+  message?: string;
+}
+
+export interface ISendMessagePayload {
+  conversationId: string;
+  content: string;
+  sender?: SenderEnum;
+}
+
+export interface IGetConversationMessagesPayload extends IPaginationQuery {
+  conversationId: string;
 }
 
 export interface IIdea extends IBaseDocument {

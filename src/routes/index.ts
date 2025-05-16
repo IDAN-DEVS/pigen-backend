@@ -6,6 +6,7 @@ import { ResponseHelper } from '../core/http/response';
 import { otpRouter } from './otpRoute';
 import { userRouter } from './userRoute';
 import { mediaRouter } from './mediaRoute';
+import { conversationRouter } from './conversationRoute';
 
 // Create the main router
 export const router = Router();
@@ -32,3 +33,4 @@ router.use('/app', appRouter);
 router.use('/otp', otpRouter);
 router.use('/user', userRouter);
 router.use('/media', mediaRouter);
+router.use('/conversations', conversationRouter);

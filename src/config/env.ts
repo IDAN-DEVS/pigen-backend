@@ -27,6 +27,7 @@ const envSchema = Joi.object({
   SMTP_PASSWORD: Joi.string().required(),
   GOOGLE_CLIENT_IDS: Joi.string().optional().allow(''),
   APPLE_CLIENT_IDS: Joi.string().optional().allow(''), // for now it'll be optional until the client ids are provided
+  GEMINI_API_KEY: Joi.string().required(),
   R2_ACCOUNT_ID: Joi.string().required(),
   R2_ACCESS_KEY_ID: Joi.string().required(),
   R2_SECRET_ACCESS_KEY: Joi.string().required(),
@@ -62,6 +63,7 @@ export interface IEnvConfig {
   R2_SECRET_ACCESS_KEY: string;
   R2_BUCKET_NAME: string;
   R2_PUBLIC_URL: string;
+  GEMINI_API_KEY: string;
 }
 
 // Create typed environment configuration
@@ -86,6 +88,7 @@ export const env: IEnvConfig = {
   R2_SECRET_ACCESS_KEY: validatedEnv.R2_SECRET_ACCESS_KEY,
   R2_BUCKET_NAME: validatedEnv.R2_BUCKET_NAME,
   R2_PUBLIC_URL: validatedEnv.R2_PUBLIC_URL,
+  GEMINI_API_KEY: validatedEnv.GEMINI_API_KEY,
 };
 
 // Helper functions for environment checks
