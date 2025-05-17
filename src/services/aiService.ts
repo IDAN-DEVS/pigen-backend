@@ -1,9 +1,5 @@
-import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-  Content,
-} from '@google/generative-ai';
+import { generateText, CoreMessage } from 'ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { AppError } from '../core/errors/appError';
 import { logger } from '../utils/logger';
 import { conversationService } from './conversationService';
@@ -12,11 +8,13 @@ import { baseHelper } from '../utils/baseHelper';
 import { IMessage, SenderEnum } from '../types/conversationType';
 import { IUser } from '../types/userType';
 import { StatusCodesEnum } from '../core/http/statusCodes';
+import { appConstants } from '../constants/appConstant';
 
 const MODEL_NAME = 'gemini-1.5-flash';
 const MAX_MESSAGES_FOR_CONTEXT = 10;
 
-const SYSTEM_PROMPT_TEXT = `You are "IdeaSpark", an advanced AI assistant embedded in a chat application. Your primary purpose is to help users brainstorm, develop, and flesh out their project ideas. Engage in a detailed, natural conversation.
+// Keep the same system prompt text
+const SYSTEM_PROMPT_TEXT = `You are "${appConstants.appName}", an advanced AI assistant embedded in a chat application. Your primary purpose is to help users brainstorm, develop, and flesh out their project ideas. Engage in a detailed, natural conversation.
 
 Based on the ongoing conversation and the user's messages, your goal is to:
 1.  Understand the user's core problem, interest, or nascent idea.
@@ -36,24 +34,34 @@ Remember:
 - Do not explicitly ask "What is the problem solved?" or "Who is the target audience?". Instead, weave these explorations into the natural flow of conversation. For example, if a user says "I want to build an app for students", you might ask "That's interesting! What specific challenges do students face that this app could help with?"
 - Conclude your response with the detailed idea summary when appropriate.`;
 
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const validateApiKey = (): void => {
+  if (!geminiApiKey) {
     logger.error('GEMINI_API_KEY is not set in environment variables.');
     throw new AppError(
       'AI service is not configured: Missing API key.',
       StatusCodesEnum.INTERNAL_SERVER_ERROR,
     );
   }
-  return new GoogleGenerativeAI(apiKey);
 };
 
+const google = createGoogleGenerativeAI({
+  apiKey: geminiApiKey,
+});
+
+/**
+ * Generates an AI reply to a user message and saves it to the conversation.
+ * Uses the Vercel AI SDK with Google's Gemini model.
+ */
 const generateAndSaveAiReply = async (
   conversationId: string,
   invokingUser: IUser,
   latestUserMessageContent: string,
 ): Promise<void> => {
   try {
+    // Validate API key
+    validateApiKey();
+
     // Notify client that AI is typing
     await sendTypingToUser(baseHelper.getMongoDbResourceId(invokingUser), {
       conversationId,
@@ -61,12 +69,7 @@ const generateAndSaveAiReply = async (
       message: 'Thinking...',
     });
 
-    const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_PROMPT_TEXT,
-    });
-
+    // Get conversation history
     let history: IMessage[] = [];
     try {
       const paginatedMessages = await conversationService.getConversationMessages(
@@ -83,47 +86,52 @@ const generateAndSaveAiReply = async (
       logger.error(`Failed to fetch conversation history for ${conversationId}:`, error);
     }
 
-    const chatHistoryForAI: Content[] = [];
+    // Format conversation history as messages for the AI
+    const messages: CoreMessage[] = history.map(msg => ({
+      role: msg.sender === SenderEnum.USER ? 'user' : 'assistant',
+      content: msg.content,
+    }));
 
-    history.forEach(msg => {
-      chatHistoryForAI.push({
-        role: msg.sender === SenderEnum.USER ? 'user' : 'model',
-        parts: [{ text: msg.content }],
-      });
+    // Add the latest user message
+    messages.push({
+      role: 'user',
+      content: latestUserMessageContent,
     });
 
-    chatHistoryForAI.push({ role: 'user', parts: [{ text: latestUserMessageContent }] });
-
-    const generationConfig = {
-      temperature: 0.7,
-      topK: 1,
-      topP: 1,
-      maxOutputTokens: 2048,
+    // Configure safety settings via provider options
+    const safetySettings = {
+      google: {
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+          },
+        ],
+      },
     };
 
-    const safetySettings = [
-      {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-    ];
-
-    const result = await model.generateContent({
-      contents: chatHistoryForAI,
-      generationConfig,
-      safetySettings,
+    // Generate text using Vercel AI SDK
+    const result = await generateText({
+      model: google(MODEL_NAME),
+      system: SYSTEM_PROMPT_TEXT,
+      messages,
+      temperature: 0.7,
+      maxTokens: 2048,
+      topP: 1,
+      topK: 1,
+      providerOptions: safetySettings,
     });
 
     // Stop typing indicator regardless of response success/failure
@@ -133,16 +141,9 @@ const generateAndSaveAiReply = async (
       message: '',
     });
 
-    if (
-      result.response &&
-      result.response.candidates &&
-      result.response.candidates.length > 0 &&
-      result.response.candidates[0].content &&
-      result.response.candidates[0].content.parts &&
-      result.response.candidates[0].content.parts.length > 0 &&
-      result.response.candidates[0].content.parts[0].text
-    ) {
-      const aiResponseText = result.response.candidates[0].content.parts[0].text.trim();
+    if (result.text) {
+      // Save the AI response to the conversation
+      const aiResponseText = result.text.trim();
       const aiMessage = await conversationService.addNewMessage({
         conversationId,
         content: aiResponseText,
@@ -154,7 +155,7 @@ const generateAndSaveAiReply = async (
         ...aiMessage?.toJSON(),
       });
     } else {
-      logger.error('Gemini AI did not return a valid response.', { response: result.response });
+      logger.error('AI did not return a valid response.', { result });
       const errorMessage = await conversationService.addNewMessage({
         conversationId,
         content: 'Sorry, I could not generate a response at this moment. Please try again.',

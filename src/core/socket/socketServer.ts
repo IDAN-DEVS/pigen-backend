@@ -11,8 +11,6 @@ enum SocketMessageEnum {
   REGISTER = 'register',
   INCOMING_MESSAGE = 'send_message', // this means a new message came in from client
   OUTGOING_MESSAGE = 'receive_message', // this means a new message is sent to client
-  NEW_CONVERSATION = 'new_conversation',
-  CONVERSATION_CREATED = 'conversation_created',
   TYPING = 'typing',
   TYPING_STOP = 'typing_stop',
   DISCONNECT = 'disconnect',
@@ -57,6 +55,7 @@ export function initSocketServer(httpServer: HttpServer) {
     });
 
     // Listen for incoming_message from client
+    // TODO: remove this, let user send message from the rest endpoint
     socket.on(
       SocketMessageEnum.INCOMING_MESSAGE,
       async (data: { userId: string; conversationId: string; message: string }) => {

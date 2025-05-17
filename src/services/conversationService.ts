@@ -29,23 +29,16 @@ const createConversation = async (
     title,
   });
 
-  // Create the first user message
-  const firstUserMessage = await MessageModel.create({
-    user: baseHelper.getMongoDbResourceId(user),
-    conversation: baseHelper.getMongoDbResourceId(newConversation),
-    content: message,
-    sender: SenderEnum.USER,
-  });
-
-  // Trigger AI reply to the first message
-  // Pass the user object itself, and the content of the first message
-  aiService
-    .generateAndSaveAiReply(
-      baseHelper.getMongoDbResourceId(newConversation),
+  if (message) {
+    await sendMessage(
+      {
+        conversationId: baseHelper.getMongoDbResourceId(newConversation),
+        content: message,
+        sender: SenderEnum.USER,
+      },
       user,
-      firstUserMessage.content,
-    )
-    .catch(error => logger.error('Error triggering AI reply for new conversation:', error));
+    );
+  }
 
   return newConversation;
 };
@@ -130,6 +123,7 @@ const getConversationMessages = async (
   });
 };
 
+// This is used by the AI service to add a new message to the conversation
 const addNewMessage = async (payload: ISendMessagePayload) => {
   const { conversationId, content, sender } = payload;
 
