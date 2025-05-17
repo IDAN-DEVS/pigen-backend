@@ -16,6 +16,7 @@ import { baseHelper } from '../utils/baseHelper';
 import { StatusCodesEnum } from '../core/http/statusCodes';
 import { aiService } from './aiService';
 import { logger } from '../utils/logger';
+import { UserModel } from '../models';
 
 const createConversation = async (
   payload: ICreateConversationPayload,
@@ -63,6 +64,11 @@ const getUserConversations = async (
 const sendMessage = async (payload: ISendMessagePayload, user: IUser): Promise<IMessage> => {
   const { conversationId, content } = payload;
 
+  // validate user has enough credit
+  if (user.remainingIdeas <= 0) {
+    throw new AppError('Not enough credit', StatusCodesEnum.FORBIDDEN);
+  }
+
   const conversation = await ConversationModel.findById(conversationId).lean();
 
   if (!conversation) {
@@ -80,6 +86,11 @@ const sendMessage = async (payload: ISendMessagePayload, user: IUser): Promise<I
     conversation: conversationId,
     content,
     sender: SenderEnum.USER,
+  });
+
+  // update user remaining ideas
+  UserModel.findByIdAndUpdate(baseHelper.getMongoDbResourceId(user), {
+    $inc: { remainingIdeas: -1 },
   });
 
   // Call AI service to generate a response, providing the user object and message content

@@ -7,6 +7,8 @@ import {
 import { AppError } from '../core/errors/appError';
 import { logger } from '../utils/logger';
 import { conversationService } from './conversationService';
+import { sendMessageToUser, sendTypingToUser } from '../core/socket/socketServer';
+import { baseHelper } from '../utils/baseHelper';
 import { IMessage, SenderEnum } from '../types/conversationType';
 import { IUser } from '../types/userType';
 import { StatusCodesEnum } from '../core/http/statusCodes';
@@ -52,6 +54,13 @@ const generateAndSaveAiReply = async (
   latestUserMessageContent: string,
 ): Promise<void> => {
   try {
+    // Notify client that AI is typing
+    await sendTypingToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+      conversationId,
+      isTyping: true,
+      message: 'Thinking...',
+    });
+
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
@@ -117,6 +126,13 @@ const generateAndSaveAiReply = async (
       safetySettings,
     });
 
+    // Stop typing indicator regardless of response success/failure
+    await sendTypingToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+      conversationId,
+      isTyping: false,
+      message: '',
+    });
+
     if (
       result.response &&
       result.response.candidates &&
@@ -127,27 +143,49 @@ const generateAndSaveAiReply = async (
       result.response.candidates[0].content.parts[0].text
     ) {
       const aiResponseText = result.response.candidates[0].content.parts[0].text.trim();
-      await conversationService.addNewMessage({
+      const aiMessage = await conversationService.addNewMessage({
         conversationId,
         content: aiResponseText,
         sender: SenderEnum.SYSTEM,
       });
+
+      // Notify the client about the new AI message
+      await sendMessageToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+        ...aiMessage?.toJSON(),
+      });
     } else {
       logger.error('Gemini AI did not return a valid response.', { response: result.response });
-      await conversationService.addNewMessage({
+      const errorMessage = await conversationService.addNewMessage({
         conversationId,
         content: 'Sorry, I could not generate a response at this moment. Please try again.',
         sender: SenderEnum.SYSTEM,
+      });
+
+      // Notify the client about the error message
+      await sendMessageToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+        ...errorMessage?.toJSON(),
       });
     }
   } catch (error) {
     logger.error('Error generating AI reply:', error);
     try {
-      await conversationService.addNewMessage({
+      // Stop typing indicator if it was still active
+      await sendTypingToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+        conversationId,
+        isTyping: false,
+        message: '',
+      });
+
+      const errorMessage = await conversationService.addNewMessage({
         conversationId,
         content:
           'Sorry, an error occurred while I was thinking. Please try rephrasing your message.',
         sender: SenderEnum.SYSTEM,
+      });
+
+      // Notify the client about the error message
+      await sendMessageToUser(baseHelper.getMongoDbResourceId(invokingUser), {
+        ...errorMessage?.toJSON(),
       });
     } catch (saveError) {
       logger.error('Failed to save error message to conversation:', saveError);

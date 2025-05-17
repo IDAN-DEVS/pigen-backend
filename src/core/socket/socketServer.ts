@@ -2,13 +2,17 @@ import { Server as HttpServer } from 'http';
 import { Server as IOServer, Socket } from 'socket.io';
 import { UserModel } from '../../models/userModel';
 import { logger } from '../../utils/logger';
+import { conversationService } from '../../services/conversationService';
+import { ISendMessagePayload } from '../../types/conversationType';
 
 let io: IOServer | null = null;
 
 enum SocketMessageEnum {
   REGISTER = 'register',
-  INCOMING_MESSAGE = 'incoming_message',
-  OUTGOING_MESSAGE = 'outgoing_message',
+  INCOMING_MESSAGE = 'send_message', // this means a new message came in from client
+  OUTGOING_MESSAGE = 'receive_message', // this means a new message is sent to client
+  NEW_CONVERSATION = 'new_conversation',
+  CONVERSATION_CREATED = 'conversation_created',
   TYPING = 'typing',
   TYPING_STOP = 'typing_stop',
   DISCONNECT = 'disconnect',
@@ -29,6 +33,17 @@ export function initSocketServer(httpServer: HttpServer) {
   io.on('connection', (socket: Socket) => {
     logger.info(`Socket connected: ${socket.id}`);
 
+    // Error handler utility for socket events
+    function handleSocketError(socket: Socket, error: any, context?: string) {
+      const message = error?.message || (typeof error === 'string' ? error : 'Unknown error');
+      if (context) {
+        logger.error(`${context}:`, error);
+      } else {
+        logger.error('Socket error:', error);
+      }
+      socket.emit('error', { message });
+    }
+
     // Expect client to emit 'register' with their userId after connecting
     socket.on(SocketMessageEnum.REGISTER, async (data: { userId: string }) => {
       try {
@@ -37,7 +52,7 @@ export function initSocketServer(httpServer: HttpServer) {
         await UserModel.findByIdAndUpdate(userId, { socketId: socket.id });
         logger.info(`Registered socketId for user ${userId}: ${socket.id}`);
       } catch (err) {
-        logger.error('Error registering socketId:', err);
+        handleSocketError(socket, err, 'Error registering socketId');
       }
     });
 
@@ -45,14 +60,27 @@ export function initSocketServer(httpServer: HttpServer) {
     socket.on(
       SocketMessageEnum.INCOMING_MESSAGE,
       async (data: { userId: string; conversationId: string; message: string }) => {
-        logger.info(`Received incoming_message: ${JSON.stringify(data)}`);
-        // Here you can process/store the message as needed, or emit to other users
-        // For now, just echo back to sender as an example
-        socket.emit(SocketMessageEnum.OUTGOING_MESSAGE, {
-          conversationId: data.conversationId,
-          message: data.message,
-          sender: data.userId,
-        });
+        try {
+          logger.info(`Received incoming_message: ${JSON.stringify(data)}`);
+
+          const user = await UserModel.findById(data.userId);
+          if (!user) {
+            handleSocketError(socket, new Error(`User not found: ${data.userId}`), 'User lookup');
+            return;
+          }
+
+          // Create the message
+          const payload: ISendMessagePayload = {
+            conversationId: data.conversationId,
+            content: data.message,
+          };
+
+          await conversationService.sendMessage(payload, user);
+
+          // The AI reply is handled automatically by sendMessage
+        } catch (error) {
+          handleSocketError(socket, error, 'Error sending message');
+        }
       },
     );
 
@@ -62,7 +90,7 @@ export function initSocketServer(httpServer: HttpServer) {
       try {
         await UserModel.findOneAndUpdate({ socketId: socket.id }, { socketId: null });
       } catch (err) {
-        logger.error('Error clearing socketId on disconnect:', err);
+        handleSocketError(socket, err, 'Error clearing socketId on disconnect');
       }
     });
   });
@@ -75,23 +103,34 @@ export async function sendMessageToUser(userId: string, message: any) {
   if (!io) throw new Error('Socket server not initialized');
   const user = await UserModel.findById(userId).lean();
   if (user && user.socketId) {
-    io.to(user.socketId).emit('send_message', message);
-    logger.info(`Sent message to user ${userId} via socket ${user.socketId}`);
+    io.to(user.socketId).emit(SocketMessageEnum.OUTGOING_MESSAGE, message);
+    logger.info(
+      `Sent ${SocketMessageEnum.OUTGOING_MESSAGE} to user ${userId} via socket ${user.socketId}`,
+    );
+    return true;
   } else {
     logger.warn(`User ${userId} not connected or missing socketId`);
+    return false;
   }
 }
 
 /**
  * Send a typing notification to a user by userId
  */
-export async function sendTypingToUser(userId: string, typingMessage: string) {
+export async function sendTypingToUser(
+  userId: string,
+  payload: { conversationId: string; isTyping: boolean; message?: string },
+) {
   if (!io) throw new Error('Socket server not initialized');
   const user = await UserModel.findById(userId).lean();
+  const event = payload.isTyping ? SocketMessageEnum.TYPING : SocketMessageEnum.TYPING_STOP;
+
   if (user && user.socketId) {
-    io.to(user.socketId).emit('typing', { message: typingMessage });
-    logger.info(`Sent typing to user ${userId} via socket ${user.socketId}`);
+    io.to(user.socketId).emit(event, payload);
+    logger.info(`Sent ${event} to user ${userId} via socket ${user.socketId}`);
+    return true;
   } else {
     logger.warn(`User ${userId} not connected or missing socketId`);
+    return false;
   }
 }
